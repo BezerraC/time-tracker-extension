@@ -1,5 +1,4 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { TimeTrackerStatusBarItem } from './statusBarItem';
 
@@ -168,12 +167,13 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 // Helper function that converts seconds from totalTimeSpent
-function formatTime(seconds: number): string {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
+function formatTime(totalSeconds: number): string {
+    const days = Math.floor(totalSeconds / (3600 * 24));
+    const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
 
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    return `${days > 0 ? days + ' Days ' : ''}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
 // This function generates HTML content for the web panel
