@@ -43,8 +43,20 @@ function stopTracking() {
 export function activate(context: vscode.ExtensionContext) {
     timeTrackerStatusBarItem = new TimeTrackerStatusBarItem();
 
-    // Path to JSON file
-    savedDataPath = context.asAbsolutePath('projects.json');
+    // Get the global storage path
+    const globalStoragePath = context.globalStorageUri.fsPath;
+    savedDataPath = path.join(globalStoragePath, 'projects.json');
+
+    // Ensure the directory exists
+    if (!fs.existsSync(globalStoragePath)) {
+        fs.mkdirSync(globalStoragePath, { recursive: true });
+    }
+
+    // Migrate data from the extension's installation directory if it exists
+    const oldSavedDataPath = context.asAbsolutePath('projects.json');
+    if (fs.existsSync(oldSavedDataPath) && !fs.existsSync(savedDataPath)) {
+        fs.renameSync(oldSavedDataPath, savedDataPath);
+    }
 
     // Checks if the JSON file exists and if it doesn't, creates it with an initial structure
     if (!fs.existsSync(savedDataPath)) {
@@ -58,7 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
     } catch (err) {
         console.error('Error loading data from JSON file:', err);
     }
-
+    
     console.log('Congratulations, your extension "time-tracker" is now active!');
 
     // Automatically start the timer with the saved time when a project is opened
