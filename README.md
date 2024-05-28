@@ -20,6 +20,7 @@ The Time Tracker & View extension for Visual Studio Code is a useful tool for mo
 
 2. **Available Commands:**
 
+   - `Toogle Tracking`: Starts/Stop time tracking clicking in stopwatch.
    - `Start Tracking`: Starts time tracking for the current project.
    - `Stop Tracking`: Stops time tracking for the current project.
    - `Reset Tracking`: Reset the tracked time for the current project.

@@ -22,6 +22,10 @@
           "title": "Time Tracker: Stop Tracking"
       },
       {
+          "command": "extension.toggleTracking",
+          "title": "Time Tracker: Toogle Tracking"
+      },
+      {
           "command": "extension.resetTracking",
           "title": "Time Tracker: Reset Tracking"
       },

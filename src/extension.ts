@@ -25,9 +25,9 @@ function stopTracking() {
                 projectTimes[index].totalTimeSpent += elapsedTime;
                 // Save updated data to JSON file
                 fs.writeFileSync(savedDataPath, JSON.stringify(projectTimes, null, 4), 'utf-8');
-                vscode.window.showInformationMessage(`Stopped time tracking. Session time: ${projectTimes[index].totalTimeSpent} seconds.`);
+                vscode.window.showInformationMessage(`Stopped time tracking. Total time: ${formatTime(projectTimes[index].totalTimeSpent)} minutes.`);
                 if (timeTrackerStatusBarItem) {
-                    timeTrackerStatusBarItem.updateTime(projectTimes[index].totalTimeSpent);
+                    timeTrackerStatusBarItem.updateTime(projectTimes[index]. totalTimeSpent);
                     timeTrackerStatusBarItem.stopTimer();
                 }
             }
@@ -58,6 +58,37 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     console.log('Congratulations, your extension "time-tracker" is now active!');
+
+    // Automatically start the timer with the saved time when a project is opened
+    const currentWorkspaceFolder = vscode.workspace.workspaceFolders?.[0]?.name;
+    if (currentWorkspaceFolder) {
+        const index = projectTimes.findIndex(project => project.projectName === currentWorkspaceFolder);
+        if (index !== -1 && timeTrackerStatusBarItem) {
+            timeTrackerStatusBarItem.updateTime(projectTimes[index].totalTimeSpent);
+        }
+    }
+
+    let toggleTrackingCommand = vscode.commands.registerCommand('extension.toggleTracking', () => {
+        const currentWorkspaceFolder = vscode.workspace.workspaceFolders?.[0]?.name;
+        if (currentWorkspaceFolder) {
+            const index = projectTimes.findIndex(project => project.projectName === currentWorkspaceFolder);
+            if (index === -1) {
+                projectTimes.push({ projectName: currentWorkspaceFolder, totalTimeSpent: 0 });
+            }
+            const initialTime = index !== -1 ? projectTimes[index].totalTimeSpent : 0;
+            if (timeTrackerStatusBarItem) {
+                timeTrackerStatusBarItem.toggleTracking(initialTime);
+            }
+            if (startTime === null) {
+                startTime = new Date();
+                vscode.window.showInformationMessage(`Time tracking started at "${currentWorkspaceFolder}".`);
+            } else {
+                stopTracking();
+            }
+        } else {
+            vscode.window.showWarningMessage('No open projects.');
+        }
+    });
 
     let startCommand = vscode.commands.registerCommand('extension.startTracking', () => {
 		if (startTime === null) {
@@ -130,6 +161,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(startCommand);
     context.subscriptions.push(stopCommand);
+    context.subscriptions.push(toggleTrackingCommand);
     context.subscriptions.push(resetCommand);
     context.subscriptions.push(showHistoryCommand);
 }
@@ -168,8 +200,8 @@ function getWebviewContent(projectTimes: ProjectTime[]): string {
             <h1>Project Time History</h1>
             <table>
                 <tr>
-                    <th>Projeto</th>
-                    <th>Tempo Total</th>
+                    <th>Projects</th>
+                    <th>Total Time</th>
                 </tr>
                 ${rows}
             </table>
