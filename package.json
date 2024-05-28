@@ -3,6 +3,7 @@
   "displayName": "Time Tracker & View",
   "publisher": "BezerraC",
   "description": "Time Tracker is an extension for Visual Studio Code that allows developers to easily monitor the time spent on their projects directly from the development environment.",
+  "icon": "src/icon.png",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.89.0"
