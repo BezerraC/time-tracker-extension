@@ -1,5 +1,7 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
+import * as os from 'os';
+import * as path from 'path';
 import { TimeTrackerStatusBarItem } from './statusBarItem';
 
 interface ProjectTime {
@@ -152,11 +154,22 @@ export function activate(context: vscode.ExtensionContext) {
             'timeTrackerHistory', // Internal panel identifier
             'Project Time History', // Panel title
             vscode.ViewColumn.One, // Column editor to show the new panel
-            {}
+            { enableScripts: true } // Enable scripts in the webview
         );
 
-        // Get the HTML content for the dashboard
-        panel.webview.html = getWebviewContent(projectTimes);
+          // Get the HTML content for the dashboard
+        panel.webview.html = getWebviewContentWithButton(projectTimes);
+
+        // Handle messages from the webview
+        panel.webview.onDidReceiveMessage(message => {
+            switch (message.command) {
+                case 'openInBrowser':
+                    const tempFilePath = path.join(os.tmpdir(), 'project-time-history.html');
+                    fs.writeFileSync(tempFilePath, getWebviewContent(projectTimes));
+                    vscode.env.openExternal(vscode.Uri.file(tempFilePath));
+                    break;
+            }
+        });
     });
 
     context.subscriptions.push(startCommand);
@@ -195,10 +208,31 @@ function getWebviewContent(projectTimes: ProjectTime[]): string {
             <style>
                 table { width: 100%; border-collapse: collapse; }
                 th, td { border: 1px solid black; padding: 8px; text-align: left; }
+                .header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                }
+                .hidden { display: none; }
+                .vscode-button {
+                    background-color: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
+                    border: 1px solid var(--vscode-button-border);
+                    padding: 13px 8px;
+                    border-radius: 2px;
+                    cursor: pointer;
+                }
+                .vscode-button:hover {
+                    background-color: var(--vscode-button-hoverBackground);
+                }
             </style>
         </head>
         <body>
-            <h1>Project Time History</h1>
+            <div class="header">
+                <h1>Project Time History</h1>
+                <button id="openBrowserBtn" class="vscode-button hidden">Open in Browser</button>
+            </div>
+            
             <table>
                 <tr>
                     <th>Projects</th>
@@ -206,9 +240,23 @@ function getWebviewContent(projectTimes: ProjectTime[]): string {
                 </tr>
                 ${rows}
             </table>
+            <script>
+                if (typeof acquireVsCodeApi !== 'undefined') {
+                    const vscode = acquireVsCodeApi();
+                    document.getElementById('openBrowserBtn').classList.remove('hidden');
+                    document.getElementById('openBrowserBtn').addEventListener('click', () => {
+                        vscode.postMessage({ command: 'openInBrowser' });
+                    });
+                }
+            </script>
         </body>
         </html>
     `;
+}
+
+
+function getWebviewContentWithButton(projectTimes: ProjectTime[]): string {
+    return getWebviewContent(projectTimes);
 }
 
 export function deactivate() {
