@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { TimeTrackerStatusBarItem } from './statusBarItem';
 
@@ -156,7 +157,7 @@ export function activate(context: vscode.ExtensionContext) {
         );
 
         // Get the HTML content for the dashboard
-        panel.webview.html = getWebviewContent(projectTimes);
+        panel.webview.html = getWebviewContent(context.extensionPath, projectTimes);
     });
 
     context.subscriptions.push(startCommand);
@@ -176,38 +177,20 @@ function formatTime(seconds: number): string {
 }
 
 // This function generates HTML content for the web panel
-function getWebviewContent(projectTimes: ProjectTime[]): string {
+function getWebviewContent(extensionPath: string, projectTimes: ProjectTime[]): string {
     const rows = projectTimes.map(project => `
         <tr>
             <td>${project.projectName}</td>
-             <td>${formatTime(project.totalTimeSpent)}</td>
+            <td>${formatTime(project.totalTimeSpent)}</td>
         </tr>
     `).join('');
 
-    return `
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Project Time History</title>
-            <style>
-                table { width: 100%; border-collapse: collapse; }
-                th, td { border: 1px solid black; padding: 8px; text-align: left; }
-            </style>
-        </head>
-        <body>
-            <h1>Project Time History</h1>
-            <table>
-                <tr>
-                    <th>Projects</th>
-                    <th>Total Time</th>
-                </tr>
-                ${rows}
-            </table>
-        </body>
-        </html>
-    `;
+    // Read the content of the HTML file
+    const htmlPath = path.join(extensionPath, 'src/webviewContent.html');
+    const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
+  
+    // Inject the rows into the div element in the HTML content
+    return htmlContent.replace('<div id="projectTable">', `<div id="projectTable">${rows}`);
 }
 
 export function deactivate() {
