@@ -8,19 +8,15 @@ export class TimeTrackerStatusBarItem {
 
     constructor() {
         this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-        this.statusBarItem.tooltip = 'Click to start/stop counting'; 
-        this.statusBarItem.command = 'extension.toggleTracking'; 
+        this.statusBarItem.tooltip = 'Click to start/stop counting';
+        this.statusBarItem.command = 'extension.toggleTracking';
         this.statusBarItem.text = '⏱︎ 00:00:00';
         this.statusBarItem.show();
     }
 
     private updateTimer() {
         this.secondsElapsed++;
-        const hours = Math.floor(this.secondsElapsed / 3600);
-        const minutes = Math.floor((this.secondsElapsed % 3600) / 60);
-        const seconds = this.secondsElapsed % 60;
-        const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        this.statusBarItem.text = `⏱︎ ${formattedTime}`;
+        this.updateTime(this.secondsElapsed);
     }
 
     public updateTime(seconds: number) {

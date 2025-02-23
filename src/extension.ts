@@ -6,7 +6,7 @@ import { TimeTrackerStatusBarItem } from './statusBarItem';
 
 interface ProjectTime {
     projectName: string;
-    totalTimeSpent: number;
+    totalTimeSpent: number; // stored in seconds
 }
 
 let timeTrackerStatusBarItem: TimeTrackerStatusBarItem | undefined;
@@ -25,11 +25,10 @@ function stopTracking() {
             const index = projectTimes.findIndex(project => project.projectName === currentWorkspaceFolder);
             if (index !== -1) {
                 projectTimes[index].totalTimeSpent += elapsedTime;
-                // Save updated data to JSON file
                 fs.writeFileSync(savedDataPath, JSON.stringify(projectTimes, null, 4), 'utf-8');
-                vscode.window.showInformationMessage(`Stopped time tracking. Total time: ${formatTime(projectTimes[index].totalTimeSpent)} minutes.`);
+                vscode.window.showInformationMessage(`Stopped time tracking. Total time: ${formatTime(projectTimes[index].totalTimeSpent)}.`);
                 if (timeTrackerStatusBarItem) {
-                    timeTrackerStatusBarItem.updateTime(projectTimes[index]. totalTimeSpent);
+                    timeTrackerStatusBarItem.updateTime(projectTimes[index].totalTimeSpent);
                     timeTrackerStatusBarItem.stopTimer();
                 }
             }
@@ -39,31 +38,25 @@ function stopTracking() {
     }
 }
 
-
 export function activate(context: vscode.ExtensionContext) {
     timeTrackerStatusBarItem = new TimeTrackerStatusBarItem();
 
-    // Get the global storage path
     const globalStoragePath = context.globalStorageUri.fsPath;
     savedDataPath = path.join(globalStoragePath, 'projects.json');
 
-    // Ensure the directory exists
     if (!fs.existsSync(globalStoragePath)) {
         fs.mkdirSync(globalStoragePath, { recursive: true });
     }
 
-    // Migrate data from the extension's installation directory if it exists
     const oldSavedDataPath = context.asAbsolutePath('projects.json');
     if (fs.existsSync(oldSavedDataPath) && !fs.existsSync(savedDataPath)) {
         fs.renameSync(oldSavedDataPath, savedDataPath);
     }
 
-    // Checks if the JSON file exists and if it doesn't, creates it with an initial structure
     if (!fs.existsSync(savedDataPath)) {
         fs.writeFileSync(savedDataPath, JSON.stringify([], null, 4), 'utf-8');
     }
 
-    // Try to load data from the JSON file
     try {
         const data = fs.readFileSync(savedDataPath, 'utf-8');
         projectTimes = JSON.parse(data);
@@ -73,7 +66,6 @@ export function activate(context: vscode.ExtensionContext) {
     
     console.log('Congratulations, your extension "time-tracker" is now active!');
 
-    // Automatically start the timer with the saved time when a project is opened
     const currentWorkspaceFolder = vscode.workspace.workspaceFolders?.[0]?.name;
     if (currentWorkspaceFolder) {
         const index = projectTimes.findIndex(project => project.projectName === currentWorkspaceFolder);
@@ -105,25 +97,25 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     let startCommand = vscode.commands.registerCommand('extension.startTracking', () => {
-		if (startTime === null) {
-			startTime = new Date();
-			const currentWorkspaceFolder = vscode.workspace.workspaceFolders?.[0]?.name;
-			if (currentWorkspaceFolder) {
-				const index = projectTimes.findIndex(project => project.projectName === currentWorkspaceFolder);
-				if (index === -1) {
-					projectTimes.push({ projectName: currentWorkspaceFolder, totalTimeSpent: 0 });
-				}
-				vscode.window.showInformationMessage(`Time tracking started at "${currentWorkspaceFolder}".`);
-				if (timeTrackerStatusBarItem) {
-					timeTrackerStatusBarItem.startTimer(projectTimes[index].totalTimeSpent); 
-				}
-			} else {
-				vscode.window.showWarningMessage('No open projects.');
-			}
-		} else {
-			vscode.window.showWarningMessage('Time tracking is already underway.');
-		}
-	});
+        if (startTime === null) {
+            startTime = new Date();
+            const currentWorkspaceFolder = vscode.workspace.workspaceFolders?.[0]?.name;
+            if (currentWorkspaceFolder) {
+                const index = projectTimes.findIndex(project => project.projectName === currentWorkspaceFolder);
+                if (index === -1) {
+                    projectTimes.push({ projectName: currentWorkspaceFolder, totalTimeSpent: 0 });
+                }
+                vscode.window.showInformationMessage(`Time tracking started at "${currentWorkspaceFolder}".`);
+                if (timeTrackerStatusBarItem) {
+                    timeTrackerStatusBarItem.startTimer(projectTimes[index].totalTimeSpent); 
+                }
+            } else {
+                vscode.window.showWarningMessage('No open projects.');
+            }
+        } else {
+            vscode.window.showWarningMessage('Time tracking is already underway.');
+        }
+    });
 
     let stopCommand = vscode.commands.registerCommand('extension.stopTracking', () => {
         if (startTime !== null) {
@@ -139,7 +131,6 @@ export function activate(context: vscode.ExtensionContext) {
             const index = projectTimes.findIndex(project => project.projectName === currentWorkspaceFolder);
             if (index !== -1) {
                 projectTimes[index].totalTimeSpent = 0;
-                // Save updated data to JSON file
                 fs.writeFileSync(savedDataPath, JSON.stringify(projectTimes, null, 4), 'utf-8');
                 vscode.window.showInformationMessage(`Total time for project "${currentWorkspaceFolder}" has been reset to zero.`);
                 if (timeTrackerStatusBarItem) {
@@ -153,26 +144,22 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    // Automatically record time when changing workspace
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
         if (startTime !== null) {
             stopTracking();
         }
     }));
 
-    // Command to open the web panel with time history
     let showHistoryCommand = vscode.commands.registerCommand('extension.showTimeHistory', () => {
         const panel = vscode.window.createWebviewPanel(
-            'timeTrackerHistory', // Internal panel identifier
-            'Project Time History', // Panel title
-            vscode.ViewColumn.One, // Column editor to show the new panel
-            { enableScripts: true } // Enable scripts in the webview
+            'timeTrackerHistory',
+            'Project Time History',
+            vscode.ViewColumn.One,
+            { enableScripts: true }
         );
 
-          // Get the HTML content for the dashboard
         panel.webview.html = getWebviewContentWithButton(projectTimes);
 
-        // Handle messages from the webview
         panel.webview.onDidReceiveMessage(message => {
             switch (message.command) {
                 case 'openInBrowser':
@@ -191,7 +178,6 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(showHistoryCommand);
 }
 
-// Helper function that converts seconds from totalTimeSpent
 function formatTime(totalSeconds: number): string {
     const days = Math.floor(totalSeconds / (3600 * 24));
     const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600);
@@ -201,7 +187,6 @@ function formatTime(totalSeconds: number): string {
     return `${days > 0 ? days + ' Days ' : ''}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
-// This function generates HTML content for the web panel
 function getWebviewContent(projectTimes: ProjectTime[]): string {
     const rows = projectTimes.map(project => `
         <tr>
@@ -266,7 +251,6 @@ function getWebviewContent(projectTimes: ProjectTime[]): string {
     `;
 }
 
-
 function getWebviewContentWithButton(projectTimes: ProjectTime[]): string {
     return getWebviewContent(projectTimes);
 }
@@ -276,7 +260,7 @@ export function deactivate() {
         stopTracking();
     }
 
-	if (timeTrackerStatusBarItem) {
+    if (timeTrackerStatusBarItem) {
         timeTrackerStatusBarItem.dispose();
     }
 }
