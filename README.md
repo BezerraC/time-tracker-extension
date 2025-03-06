@@ -24,6 +24,7 @@ The Time Tracker & View extension for Visual Studio Code is a useful tool for mo
    - `Start Tracking`: Starts time tracking for the current project.
    - `Stop Tracking`: Stops time tracking for the current project.
    - `Reset Tracking`: Reset the tracked time for the current project.
+   - `Toogle Button`: Automatically start time tracking when a workspace is opened.
    - `Show Time History`: Displays the time history of projects.
 
 3. **Time History View:**
