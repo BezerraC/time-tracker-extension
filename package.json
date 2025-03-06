@@ -13,6 +13,16 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Time Tracker",
+      "properties": {
+        "timeTracker.autoStartOnOpen": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start time tracking when a workspace is opened"
+        }
+      }
+    },
     "commands": [
       {
         "command": "extension.startTracking",
@@ -33,6 +43,10 @@
       {
         "command": "extension.showTimeHistory",
         "title": "Time Tracker: Show Time History"
+      },
+      {
+        "command": "extension.toggleAutoStart",
+        "title": "Time Tracker: Toggle Auto-Start on Workspace Open"
       }
     ],
     "menus": {

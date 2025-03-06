@@ -72,6 +72,13 @@ export function activate(context: vscode.ExtensionContext) {
         if (index !== -1 && timeTrackerStatusBarItem) {
             timeTrackerStatusBarItem.updateTime(projectTimes[index].totalTimeSpent);
         }
+        
+        // Auto-start time tracking if configured
+        const config = vscode.workspace.getConfiguration('timeTracker');
+        const autoStartEnabled = config.get('autoStartOnOpen', false);
+        if (autoStartEnabled && startTime === null) {
+            startTimeTracking();
+        }
     }
 
     let toggleTrackingCommand = vscode.commands.registerCommand('extension.toggleTracking', () => {
@@ -97,6 +104,11 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     let startCommand = vscode.commands.registerCommand('extension.startTracking', () => {
+        startTimeTracking();
+    });
+
+    // Function to start time tracking
+    function startTimeTracking() {
         if (startTime === null) {
             startTime = new Date();
             const currentWorkspaceFolder = vscode.workspace.workspaceFolders?.[0]?.name;
@@ -104,18 +116,23 @@ export function activate(context: vscode.ExtensionContext) {
                 const index = projectTimes.findIndex(project => project.projectName === currentWorkspaceFolder);
                 if (index === -1) {
                     projectTimes.push({ projectName: currentWorkspaceFolder, totalTimeSpent: 0 });
+                    const newIndex = projectTimes.length - 1;
+                    if (timeTrackerStatusBarItem) {
+                        timeTrackerStatusBarItem.startTimer(0);
+                    }
+                } else {
+                    if (timeTrackerStatusBarItem) {
+                        timeTrackerStatusBarItem.startTimer(projectTimes[index].totalTimeSpent);
+                    }
                 }
                 vscode.window.showInformationMessage(`Time tracking started at "${currentWorkspaceFolder}".`);
-                if (timeTrackerStatusBarItem) {
-                    timeTrackerStatusBarItem.startTimer(projectTimes[index].totalTimeSpent); 
-                }
             } else {
                 vscode.window.showWarningMessage('No open projects.');
             }
         } else {
             vscode.window.showWarningMessage('Time tracking is already underway.');
         }
-    });
+    }
 
     let stopCommand = vscode.commands.registerCommand('extension.stopTracking', () => {
         if (startTime !== null) {
@@ -144,9 +161,34 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    // Toggle auto-start setting
+    let toggleAutoStartCommand = vscode.commands.registerCommand('extension.toggleAutoStart', () => {
+        const config = vscode.workspace.getConfiguration('timeTracker');
+        const currentSetting = config.get('autoStartOnOpen', false);
+        
+        config.update('autoStartOnOpen', !currentSetting, vscode.ConfigurationTarget.Global)
+            .then(() => {
+                vscode.window.showInformationMessage(
+                    `Auto-start time tracking on workspace open: ${!currentSetting ? 'Enabled' : 'Disabled'}`
+                );
+            });
+    });
+
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
         if (startTime !== null) {
             stopTracking();
+        }
+        
+        // Check if auto-start is enabled when changing workspaces
+        const config = vscode.workspace.getConfiguration('timeTracker');
+        const autoStartEnabled = config.get('autoStartOnOpen', false);
+        
+        if (autoStartEnabled && vscode.workspace.workspaceFolders?.length) {
+            setTimeout(() => {
+                if (startTime === null) {
+                    startTimeTracking();
+                }
+            }, 1000); // Small delay to ensure workspace is fully loaded
         }
     }));
 
@@ -176,6 +218,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(toggleTrackingCommand);
     context.subscriptions.push(resetCommand);
     context.subscriptions.push(showHistoryCommand);
+    context.subscriptions.push(toggleAutoStartCommand); 
 }
 
 function formatTime(totalSeconds: number): string {
