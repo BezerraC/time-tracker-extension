@@ -168,11 +168,28 @@ export function activate(context: vscode.ExtensionContext) {
         
         config.update('autoStartOnOpen', !currentSetting, vscode.ConfigurationTarget.Global)
             .then(() => {
+                const newStatus = !currentSetting ? 'Enabled' : 'Disabled';
                 vscode.window.showInformationMessage(
-                    `Auto-start time tracking on workspace open: ${!currentSetting ? 'Enabled' : 'Disabled'}`
+                    `Auto-start time tracking on workspace open: ${newStatus}`
                 );
+                
+                // Update the button's appearance
+                if (timeTrackerStatusBarItem) {
+                    timeTrackerStatusBarItem.updateAutoStartButton();
+                }
             });
     });
+
+    // Listener for changes in the configuration
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('timeTracker.autoStartOnOpen')) {
+                if (timeTrackerStatusBarItem) {
+                    timeTrackerStatusBarItem.updateAutoStartButton();
+                }
+            }
+        })
+    );
 
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
         if (startTime !== null) {

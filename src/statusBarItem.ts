@@ -2,16 +2,37 @@ import * as vscode from 'vscode';
 
 export class TimeTrackerStatusBarItem {
     private statusBarItem: vscode.StatusBarItem;
+    private autoStartStatusBarItem: vscode.StatusBarItem;
     private intervalId: NodeJS.Timeout | undefined;
     private secondsElapsed: number = 0;
     private isTracking: boolean = false;
 
     constructor() {
-        this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+        // Main stopwatch button
+        this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
         this.statusBarItem.tooltip = 'Click to start/stop counting';
         this.statusBarItem.command = 'extension.toggleTracking';
         this.statusBarItem.text = '⏱︎ 00:00:00';
         this.statusBarItem.show();
+        
+        // Auto Start Button
+        this.autoStartStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
+        this.autoStartStatusBarItem.command = 'extension.toggleAutoStart';
+        this.updateAutoStartButton();
+        this.autoStartStatusBarItem.show();
+    }
+
+    public updateAutoStartButton() {
+        const config = vscode.workspace.getConfiguration('timeTracker');
+        const autoStartEnabled = config.get('autoStartOnOpen', false);
+        
+        if (autoStartEnabled) {
+            this.autoStartStatusBarItem.text = '▶ Auto Start';
+            this.autoStartStatusBarItem.tooltip = 'Auto Start enabled. Click to disable';
+        } else {
+            this.autoStartStatusBarItem.text = '◼ Auto Start';
+            this.autoStartStatusBarItem.tooltip = 'Auto Start disabled. Click to enable';
+        }
     }
 
     private updateTimer() {
@@ -60,5 +81,6 @@ export class TimeTrackerStatusBarItem {
     public dispose() {
         this.stopTimer();
         this.statusBarItem.dispose();
+        this.autoStartStatusBarItem.dispose();
     }
 }
