@@ -14,7 +14,13 @@ let startTime: Date | null = null;
 let projectTimes: ProjectTime[] = [];
 let savedDataPath: string;
 
-function stopTracking() {
+// Variables for inactivity detection
+let lastActivityTime: Date | null = null;
+let inactivityCheckInterval: NodeJS.Timeout | undefined;
+let isPausedDueToInactivity: boolean = false;
+let inactivityTimer: NodeJS.Timeout | undefined;
+
+function stopTracking(automaticPause: boolean = false) {
     if (startTime !== null) {
         const endTime = new Date();
         const elapsedTime = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
@@ -26,7 +32,11 @@ function stopTracking() {
             if (index !== -1) {
                 projectTimes[index].totalTimeSpent += elapsedTime;
                 fs.writeFileSync(savedDataPath, JSON.stringify(projectTimes, null, 4), 'utf-8');
-                vscode.window.showInformationMessage(`Stopped time tracking. Total time: ${formatTime(projectTimes[index].totalTimeSpent)}.`);
+                
+                if (!automaticPause) {
+                    vscode.window.showInformationMessage(`Stopped time tracking. Total time: ${formatTime(projectTimes[index].totalTimeSpent)}.`);
+                }
+                
                 if (timeTrackerStatusBarItem) {
                     timeTrackerStatusBarItem.updateTime(projectTimes[index].totalTimeSpent);
                     timeTrackerStatusBarItem.stopTimer();
@@ -34,6 +44,108 @@ function stopTracking() {
             }
         } else {
             vscode.window.showWarningMessage('No open projects.');
+        }
+    }
+}
+
+function setupInactivityDetection() {
+    const config = vscode.workspace.getConfiguration('timeTracker');
+    const inactivityTimeoutMinutes = config.get('inactivityTimeoutMinutes', 5);
+    const checkInactivityInterval = 30000; // Verify every 30 seconds
+    
+    // Clear existing intervals
+    if (inactivityCheckInterval) {
+        clearInterval(inactivityCheckInterval);
+    }
+    
+    //Configure inactivity detection only if tracking
+    if (startTime !== null) {
+        lastActivityTime = new Date(); // Initialize for real time
+        
+        // Register multiple events to detect user activity
+        registerActivityEvents();
+        
+        // Crate interval to check inactivity
+        inactivityCheckInterval = setInterval(() => {
+            checkForInactivity(inactivityTimeoutMinutes);
+        }, checkInactivityInterval);
+    }
+}
+
+function registerActivityEvents() {
+    // Register multiple events to detect user activity
+    vscode.window.onDidChangeActiveTextEditor(() => recordActivity());
+    vscode.window.onDidChangeTextEditorSelection(() => recordActivity());
+    vscode.workspace.onDidChangeTextDocument(() => recordActivity());
+    vscode.window.onDidChangeWindowState(() => recordActivity());
+}
+
+function recordActivity() {
+    lastActivityTime = new Date();
+    
+    // If paused due to inactivity, resume automatically
+    if (isPausedDueToInactivity && timeTrackerStatusBarItem) {
+        resumeFromInactivity();
+    }
+    
+    // Reinitialize the inactivity timer
+    if (inactivityTimer) {
+        clearTimeout(inactivityTimer);
+    }
+    
+    const config = vscode.workspace.getConfiguration('timeTracker');
+    const inactivityTimeoutMinutes = config.get('inactivityTimeoutMinutes', 5);
+    const inactivityTimeoutMs = inactivityTimeoutMinutes * 60 * 1000;
+    
+    inactivityTimer = setTimeout(() => {
+        if (startTime !== null && !isPausedDueToInactivity) {
+            pauseDueToInactivity();
+        }
+    }, inactivityTimeoutMs);
+}
+
+function checkForInactivity(inactivityTimeoutMinutes: number) {
+    if (lastActivityTime === null || startTime === null || isPausedDueToInactivity) {
+        return;
+    }
+    
+    const now = new Date();
+    const inactiveTimeMs = now.getTime() - lastActivityTime.getTime();
+    const inactivityTimeoutMs = inactivityTimeoutMinutes * 60 * 1000;
+    
+    if (inactiveTimeMs >= inactivityTimeoutMs) {
+        pauseDueToInactivity();
+    }
+}
+
+function pauseDueToInactivity() {
+    if (startTime !== null && !isPausedDueToInactivity) {
+        isPausedDueToInactivity = true;
+        stopTracking(true); // Stop tracking without showing a message
+        
+        const currentWorkspaceFolder = vscode.workspace.workspaceFolders?.[0]?.name;
+        if (currentWorkspaceFolder) {
+            vscode.window.showInformationMessage(`Time tracking paused due to inactivity in "${currentWorkspaceFolder}". Activity will resume tracking automatically.`);
+        }
+    }
+}
+
+function resumeFromInactivity() {
+    if (isPausedDueToInactivity) {
+        isPausedDueToInactivity = false;
+        
+        const currentWorkspaceFolder = vscode.workspace.workspaceFolders?.[0]?.name;
+        if (currentWorkspaceFolder) {
+            const index = projectTimes.findIndex(project => project.projectName === currentWorkspaceFolder);
+            
+            startTime = new Date();
+            const initialTime = index !== -1 ? projectTimes[index].totalTimeSpent : 0;
+            
+            if (timeTrackerStatusBarItem) {
+                timeTrackerStatusBarItem.startTimer(initialTime);
+            }
+            
+            vscode.window.showInformationMessage(`Time tracking resumed for "${currentWorkspaceFolder}" after detecting activity.`);
         }
     }
 }
@@ -89,14 +201,42 @@ export function activate(context: vscode.ExtensionContext) {
                 projectTimes.push({ projectName: currentWorkspaceFolder, totalTimeSpent: 0 });
             }
             const initialTime = index !== -1 ? projectTimes[index].totalTimeSpent : 0;
-            if (timeTrackerStatusBarItem) {
-                timeTrackerStatusBarItem.toggleTracking(initialTime);
-            }
+            
             if (startTime === null) {
+                // Start tracking
                 startTime = new Date();
+                isPausedDueToInactivity = false;
+                
+                if (timeTrackerStatusBarItem) {
+                    timeTrackerStatusBarItem.toggleTracking(initialTime);
+                }
+                
                 vscode.window.showInformationMessage(`Time tracking started at "${currentWorkspaceFolder}".`);
+                
+                // Config the inactivity detection
+                setupInactivityDetection();
+                
+                // Register initial activity
+                recordActivity();
             } else {
+                // Stop tracking
+                if (timeTrackerStatusBarItem) {
+                    timeTrackerStatusBarItem.toggleTracking(initialTime);
+                }
                 stopTracking();
+                
+                // Clear inactivity detection
+                if (inactivityCheckInterval) {
+                    clearInterval(inactivityCheckInterval);
+                    inactivityCheckInterval = undefined;
+                }
+                
+                if (inactivityTimer) {
+                    clearTimeout(inactivityTimer);
+                    inactivityTimer = undefined;
+                }
+                
+                isPausedDueToInactivity = false;
             }
         } else {
             vscode.window.showWarningMessage('No open projects.');
@@ -111,6 +251,8 @@ export function activate(context: vscode.ExtensionContext) {
     function startTimeTracking() {
         if (startTime === null) {
             startTime = new Date();
+            isPausedDueToInactivity = false;
+            
             const currentWorkspaceFolder = vscode.workspace.workspaceFolders?.[0]?.name;
             if (currentWorkspaceFolder) {
                 const index = projectTimes.findIndex(project => project.projectName === currentWorkspaceFolder);
@@ -126,6 +268,12 @@ export function activate(context: vscode.ExtensionContext) {
                     }
                 }
                 vscode.window.showInformationMessage(`Time tracking started at "${currentWorkspaceFolder}".`);
+                
+                // Configure inactivity detection
+                setupInactivityDetection();
+                
+                // Register initial activity
+                recordActivity();
             } else {
                 vscode.window.showWarningMessage('No open projects.');
             }
@@ -137,6 +285,19 @@ export function activate(context: vscode.ExtensionContext) {
     let stopCommand = vscode.commands.registerCommand('extension.stopTracking', () => {
         if (startTime !== null) {
             stopTracking();
+            
+            // Clear inactivity detection
+            if (inactivityCheckInterval) {
+                clearInterval(inactivityCheckInterval);
+                inactivityCheckInterval = undefined;
+            }
+            
+            if (inactivityTimer) {
+                clearTimeout(inactivityTimer);
+                inactivityTimer = undefined;
+            }
+            
+            isPausedDueToInactivity = false;
         } else {
             vscode.window.showWarningMessage('Time tracking has not started.');
         }
@@ -180,7 +341,28 @@ export function activate(context: vscode.ExtensionContext) {
             });
     });
 
-    // Listener for changes in the configuration
+    // Configure inactivity timeout
+    let configureInactivityCommand = vscode.commands.registerCommand('extension.configureInactivity', async () => {
+        const config = vscode.workspace.getConfiguration('timeTracker');
+        const currentTimeout = config.get('inactivityTimeoutMinutes', 5);
+        
+        const result = await vscode.window.showInputBox({
+            prompt: 'Enter the inactivity timeout in minutes before pausing time tracking',
+            value: currentTimeout.toString(),
+            validateInput: (value) => {
+                const num = parseInt(value);
+                return (isNaN(num) || num <= 0) ? 'Please enter a positive number' : null;
+            }
+        });
+        
+        if (result) {
+            const newTimeout = parseInt(result);
+            await config.update('inactivityTimeoutMinutes', newTimeout, vscode.ConfigurationTarget.Global);
+            vscode.window.showInformationMessage(`Inactivity timeout set to ${newTimeout} minute${newTimeout !== 1 ? 's' : ''}`);
+        }
+    });
+    
+    // Listener for changes in configuration
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration(e => {
             if (e.affectsConfiguration('timeTracker.autoStartOnOpen')) {
@@ -188,12 +370,31 @@ export function activate(context: vscode.ExtensionContext) {
                     timeTrackerStatusBarItem.updateAutoStartButton();
                 }
             }
+            
+            if (e.affectsConfiguration('timeTracker.inactivityTimeoutMinutes')) {
+                // Reconfgure inactivity detection
+                if (startTime !== null) {
+                    setupInactivityDetection();
+                }
+            }
         })
     );
 
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        // Stop current tracking
         if (startTime !== null) {
             stopTracking();
+            
+            // Clear inactivity detection
+            if (inactivityCheckInterval) {
+                clearInterval(inactivityCheckInterval);
+                inactivityCheckInterval = undefined;
+            }
+            
+            if (inactivityTimer) {
+                clearTimeout(inactivityTimer);
+                inactivityTimer = undefined;
+            }
         }
         
         // Check if auto-start is enabled when changing workspaces
@@ -235,7 +436,8 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(toggleTrackingCommand);
     context.subscriptions.push(resetCommand);
     context.subscriptions.push(showHistoryCommand);
-    context.subscriptions.push(toggleAutoStartCommand); 
+    context.subscriptions.push(toggleAutoStartCommand);
+    context.subscriptions.push(configureInactivityCommand);
 }
 
 function formatTime(totalSeconds: number): string {
@@ -318,6 +520,15 @@ function getWebviewContentWithButton(projectTimes: ProjectTime[]): string {
 export function deactivate() {
     if (startTime !== null) {
         stopTracking();
+    }
+
+    // Clear intervals
+    if (inactivityCheckInterval) {
+        clearInterval(inactivityCheckInterval);
+    }
+    
+    if (inactivityTimer) {
+        clearTimeout(inactivityTimer);
     }
 
     if (timeTrackerStatusBarItem) {

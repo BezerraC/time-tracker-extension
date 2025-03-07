@@ -20,6 +20,12 @@
           "type": "boolean",
           "default": false,
           "description": "Automatically start time tracking when a workspace is opened"
+        },
+        "timeTracker.inactivityTimeoutMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "Number of minutes of inactivity before time tracking is automatically paused"
         }
       }
     },
@@ -47,6 +53,10 @@
       {
         "command": "extension.toggleAutoStart",
         "title": "Time Tracker: Toggle Auto-Start on Workspace Open"
+      },
+      {
+        "command": "extension.configureInactivity",
+        "title": "Time Tracker: Configure Inactivity Timeout"
       }
     ],
     "menus": {
