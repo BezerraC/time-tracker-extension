@@ -24,7 +24,6 @@ function stopTracking(automaticPause: boolean = false) {
     if (startTime !== null) {
         const endTime = new Date();
         const elapsedTime = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
-        startTime = null;
 
         const currentWorkspaceFolder = vscode.workspace.workspaceFolders?.[0]?.name;
         if (currentWorkspaceFolder) {
@@ -32,11 +31,11 @@ function stopTracking(automaticPause: boolean = false) {
             if (index !== -1) {
                 projectTimes[index].totalTimeSpent += elapsedTime;
                 fs.writeFileSync(savedDataPath, JSON.stringify(projectTimes, null, 4), 'utf-8');
-                
+
                 if (!automaticPause) {
                     vscode.window.showInformationMessage(`Stopped time tracking. Total time: ${formatTime(projectTimes[index].totalTimeSpent)}.`);
                 }
-                
+
                 if (timeTrackerStatusBarItem) {
                     timeTrackerStatusBarItem.updateTime(projectTimes[index].totalTimeSpent);
                     timeTrackerStatusBarItem.stopTimer();
@@ -45,6 +44,7 @@ function stopTracking(automaticPause: boolean = false) {
         } else {
             vscode.window.showWarningMessage('No open projects.');
         }
+        startTime = null;
     }
 }
 
@@ -200,9 +200,11 @@ export function activate(context: vscode.ExtensionContext) {
             if (index === -1) {
                 projectTimes.push({ projectName: currentWorkspaceFolder, totalTimeSpent: 0 });
             }
-            const initialTime = index !== -1 ? projectTimes[index].totalTimeSpent : 0;
             
+            let initialTime = index !== -1 ? projectTimes[index].totalTimeSpent : 0;
+
             if (startTime === null) {
+
                 // Start tracking
                 startTime = new Date();
                 isPausedDueToInactivity = false;
@@ -218,8 +220,14 @@ export function activate(context: vscode.ExtensionContext) {
                 
                 // Register initial activity
                 recordActivity();
+                
             } else {
+
                 // Stop tracking
+                const endTime = new Date();
+                const elapsedTime = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
+                initialTime = index !== -1 ? projectTimes[index].totalTimeSpent + elapsedTime : elapsedTime;
+    
                 if (timeTrackerStatusBarItem) {
                     timeTrackerStatusBarItem.toggleTracking(initialTime);
                 }
